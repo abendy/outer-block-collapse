@@ -25,11 +25,32 @@ interface Block {
     end: number;
 }
 
+interface StackItem {
+    index: number;
+    ignored: boolean;
+}
+
 function findOuterBlocks(text: string): Block[] {
     const blocks: Block[] = [];
-    const stack: number[] = [];
+    const stack: StackItem[] = [];
     let inString = false;
     let stringChar = '';
+
+    // Get ignore patterns from configuration
+    const config = vscode.workspace.getConfiguration('outerBlockCollapse');
+    const ignorePatterns = config.get<string[]>('ignorePatterns') || [];
+    const regexPatterns = ignorePatterns.map(pattern => new RegExp(pattern));
+
+    // Split text into lines for ignore pattern checking
+    const lines = text.split('\n');
+    const ignoredLineIndices = new Set<number>();
+
+    // Find all lines that match ignore patterns
+    lines.forEach((line, index) => {
+        if (regexPatterns.some(pattern => pattern.test(line.trim()))) {
+            ignoredLineIndices.add(index);
+        }
+    });
 
     for (let i = 0; i < text.length; i++) {
         const char = text[i];
@@ -49,19 +70,24 @@ function findOuterBlocks(text: string): Block[] {
 
         // Handle block starts
         if (char === '{' || char === '[' || char === '(') {
-            if (stack.length === 0) {
+            // Get the line number for this character position
+            const lineNumber = text.substring(0, i).split('\n').length - 1;
+            const isIgnored = ignoredLineIndices.has(lineNumber);
+
+            // Add to stack with ignored flag
+            if (stack.length === 0 && !isIgnored) {
                 // This is an outer block
                 blocks.push({ start: i, end: -1 });
             }
-            stack.push(i);
+            stack.push({ index: i, ignored: isIgnored });
         }
 
         // Handle block ends
         if (char === '}' || char === ']' || char === ')') {
-            const start = stack.pop();
-            if (stack.length === 0 && start !== undefined) {
+            const lastItem = stack.pop();
+            if (lastItem && !lastItem.ignored && stack.length === 0) {
                 // Find and update the corresponding outer block
-                const block = blocks.find(b => b.start === start);
+                const block = blocks.find(b => b.start === lastItem.index);
                 if (block) {
                     block.end = i;
                 }
@@ -73,14 +99,19 @@ function findOuterBlocks(text: string): Block[] {
 }
 
 function collapseBlocks(editor: vscode.TextEditor, blocks: Block[]) {
-    editor.selections = blocks.map(block => {
+    // Create folding ranges
+    const foldingRanges = blocks.map(block => {
         const startPos = editor.document.positionAt(block.start);
         const endPos = editor.document.positionAt(block.end + 1);
-        return new vscode.Selection(startPos, endPos);
+        return new vscode.FoldingRange(startPos.line, endPos.line);
     });
 
-    // Execute fold command for all selections
-    vscode.commands.executeCommand('editor.fold');
+    // Apply folding
+    if (foldingRanges.length > 0) {
+        vscode.commands.executeCommand('editor.fold', {
+            selectionLines: foldingRanges.map(range => range.start)
+        });
+    }
 }
 
 export function deactivate() { }
