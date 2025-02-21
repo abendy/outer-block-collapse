@@ -15,6 +15,21 @@
     ],
     "main": "./out/extension.js",
     "contributes": {
+        "configuration": {
+            "title": "Outer Block Collapse",
+            "properties": {
+                "outerBlockCollapse.ignorePatterns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": [
+                        "^@"
+                    ],
+                    "description": "Regular expressions for lines that should not trigger block collapse"
+                }
+            }
+        },
         "commands": [
             {
                 "command": "outer-block-collapse.collapse",

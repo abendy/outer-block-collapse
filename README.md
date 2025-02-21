@@ -9,6 +9,23 @@ A VSCode/Windsurf extension that collapses all outermost code blocks (functions,
 - Handles nested blocks correctly
 - Skips blocks within string literals
 - Works with any file type
+- Configurable ignore patterns to skip specific lines
+
+### Configuration
+
+You can configure which lines to ignore using regular expressions in your VSCode settings:
+
+```json
+{
+  "outerBlockCollapse.ignorePatterns": [
+    "^@",           // Ignore lines starting with @
+    "^\\s*import ", // Ignore import statements
+    "^\\s*from "    // Ignore from statements
+  ]
+}
+```
+
+By default, the extension ignores lines starting with `@` (common for decorators). You can add more patterns in your settings.json or through the Settings UI.
 
 ## Installation
 
