@@ -6,6 +6,7 @@
     "engines": {
         "vscode": "^1.80.0"
     },
+    "license": "MIT",
     "categories": [
         "Other"
     ],
@@ -18,6 +19,14 @@
             {
                 "command": "outer-block-collapse.collapse",
                 "title": "Collapse Outer Blocks"
+            }
+        ],
+        "keybindings": [
+            {
+                "command": "outer-block-collapse.collapse",
+                "key": "ctrl+k ctrl+0",
+                "mac": "cmd+k cmd+0",
+                "when": "editorTextFocus"
             }
         ]
     },

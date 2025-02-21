@@ -30,10 +30,19 @@ A VSCode/Windsurf extension that collapses all outermost code blocks (functions,
 
 ## Usage
 
+You can collapse outer blocks in two ways:
+
+### Using Keyboard Shortcut
+- Windows/Linux: Press `Ctrl+K Ctrl+0`
+- Mac: Press `Cmd+K Cmd+0`
+
+### Using Command Palette
 1. Open any code file
 2. Open the command palette (`Ctrl+Shift+P` / `Cmd+Shift+P`)
 3. Type "Collapse Outer Blocks" and select the command
 4. The outermost blocks will be collapsed while inner content remains expanded
+
+The keyboard shortcut was chosen to be similar to VSCode's built-in "Fold All" (`Ctrl+K Ctrl+0`), making it intuitive for users familiar with VSCode's folding shortcuts.
 
 ## Development
 
