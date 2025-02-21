@@ -1,0 +1,34 @@
+{
+    "name": "outer-block-collapse",
+    "displayName": "Outer Block Collapse",
+    "description": "Collapse outermost code blocks while keeping inner content expanded",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.80.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "onCommand:outer-block-collapse.collapse"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "outer-block-collapse.collapse",
+                "title": "Collapse Outer Blocks"
+            }
+        ]
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./"
+    },
+    "devDependencies": {
+        "@types/node": "^16.0.0",
+        "@types/vscode": "^1.80.0",
+        "typescript": "^4.9.0"
+    }
+}
