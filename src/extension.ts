@@ -38,90 +38,112 @@ interface Block {
 
 function findOuterBlocks(text: string, ignorePatterns: string[]): Block[] {
     const blocks: Block[] = [];
-    const stack: { index: number, line: number }[] = [];
+    const stack: { index: number, line: number, char: string }[] = [];
     let inString = false;
     let stringChar = '';
-
-    // Convert patterns to RegExp
-    const regexPatterns = ignorePatterns.map(pattern => new RegExp(pattern));
-
-    // Track line numbers
+    let inSingleLineComment = false;
+    let inMultiLineComment = false;
     let currentLine = 0;
     const lines = text.split('\n');
+    const blockPairs: Record<string, string> = { '{': '}', '[': ']', '(': ')' };
+    const blockOpen = Object.keys(blockPairs);
+    const blockClose = Object.values(blockPairs);
 
     for (let i = 0; i < text.length; i++) {
         const char = text[i];
+        const prevChar = i > 0 ? text[i - 1] : '';
+        const nextChar = i < text.length - 1 ? text[i + 1] : '';
 
         // Update line count
         if (char === '\n') {
             currentLine++;
+            inSingleLineComment = false;
             continue;
         }
 
-        // Handle string literals
-        if ((char === '"' || char === "'" || char === '`') && text[i - 1] !== '\\') {
-            if (!inString) {
-                inString = true;
-                stringChar = char;
-            } else if (char === stringChar) {
-                inString = false;
+        // Handle comments
+        if (!inString && !inSingleLineComment && !inMultiLineComment) {
+            if (char === '/' && nextChar === '/') {
+                inSingleLineComment = true;
+                i++; // skip nextChar
+                continue;
             }
+            if (char === '/' && nextChar === '*') {
+                inMultiLineComment = true;
+                i++;
+                continue;
+            }
+        } else if (inMultiLineComment && char === '*' && nextChar === '/') {
+            inMultiLineComment = false;
+            i++;
             continue;
         }
+        if (inSingleLineComment || inMultiLineComment) continue;
 
+        // Handle string literals (basic, not perfect)
+        if (!inString && (char === '"' || char === "'" || char === '`')) {
+            inString = true;
+            stringChar = char;
+            continue;
+        } else if (inString && char === stringChar && prevChar !== '\\') {
+            inString = false;
+            continue;
+        }
         if (inString) continue;
 
-        // Check if current line should be ignored
-        const currentLineText = lines[currentLine];
-        if (regexPatterns.some(pattern => pattern.test(currentLineText.trim()))) {
-            continue;
-        }
-
         // Handle block starts
-        if (char === '{' || char === '[' || char === '(') {
+        if (blockOpen.includes(char)) {
             if (stack.length === 0) {
-                // Only track outermost blocks
-                stack.push({ index: i, line: currentLine });
+                stack.push({ index: i, line: currentLine, char });
+            } else {
+                stack.push({ index: i, line: currentLine, char });
             }
         }
-
         // Handle block ends
-        if (char === '}' || char === ']' || char === ')') {
-            if (stack.length === 1) {  // Only process outermost blocks
-                const start = stack[0];
-                const content = text.substring(start.index, i + 1);
-
-                // Only add if block spans multiple lines
-                if (currentLine > start.line) {
-                    blocks.push({
-                        start: start.index,
-                        end: i,
-                        startLine: start.line,
-                        endLine: currentLine,
-                        content: content
-                    });
-                }
-            }
+        if (blockClose.includes(char)) {
             if (stack.length > 0) {
-                stack.pop();
+                const last = stack[stack.length - 1];
+                if (blockPairs[last.char] === char) {
+                    if (stack.length === 1) { // Only root-level
+                        const start = last;
+                        const endLine = currentLine;
+                        if (endLine > start.line) {
+                            blocks.push({
+                                start: start.index,
+                                end: i,
+                                startLine: start.line,
+                                endLine: endLine,
+                                content: text.substring(start.index, i + 1)
+                            });
+                        }
+                    }
+                    stack.pop();
+                }
             }
         }
     }
-
+    // Apply ignore patterns after block detection
+    if (ignorePatterns.length > 0) {
+        const regexPatterns = ignorePatterns.map(pattern => new RegExp(pattern));
+        return blocks.filter(block => {
+            const blockLines = block.content.split('\n').map(l => l.trim());
+            return !blockLines.some(line => regexPatterns.some(re => re.test(line)));
+        });
+    }
     return blocks;
 }
 
 function collapseOuterBlocks(editor: vscode.TextEditor, blocks: Block[]) {
-    // Create a single selection for each outer block
-    editor.selections = blocks.map(block => {
+    if (blocks.length === 0) return;
+    const originalSelections = editor.selections;
+    const foldPromises = blocks.map(block => {
         const startPos = editor.document.positionAt(block.start);
-        // Include the closing character in the selection
-        const endPos = editor.document.positionAt(block.end + 1);
-        return new vscode.Selection(startPos, endPos);
+        // Fold the start line (VSCode folds by line, not by char)
+        return vscode.commands.executeCommand('editor.fold', { selectionLines: [startPos.line] });
     });
-
-    // Fold only the selected regions
-    vscode.commands.executeCommand('editor.fold');
+    Promise.all(foldPromises).then(() => {
+        editor.selections = originalSelections;
+    });
 }
 
 export function deactivate() { }
