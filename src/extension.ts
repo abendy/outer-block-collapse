@@ -28,14 +28,13 @@ interface Block {
     end: number;
     startLine: number;
     endLine: number;
-    content: string;
     parent?: Block;
-    children?: Block[];
+    children: Block[];
 }
 
-function findAllBlocks(text: string): Block[] {
+function buildBlockTree(text: string): Block[] {
     const blocks: Block[] = [];
-    const stack: { index: number, line: number, char: string, block?: Block }[] = [];
+    const stack: { block: Block, char: string }[] = [];
     let inString = false;
     let stringChar = '';
     let inSingleLineComment = false;
@@ -90,23 +89,21 @@ function findAllBlocks(text: string): Block[] {
                 end: -1,
                 startLine: lineMap[i],
                 endLine: -1,
-                content: '',
                 children: []
             };
             if (stack.length > 0) {
                 block.parent = stack[stack.length - 1].block;
-                stack[stack.length - 1].block!.children!.push(block);
+                stack[stack.length - 1].block.children.push(block);
             }
-            stack.push({ index: i, line: lineMap[i], char, block });
+            stack.push({ block, char });
         }
         if (blockClose.includes(char)) {
             if (stack.length > 0) {
                 const last = stack[stack.length - 1];
                 if (blockPairs[last.char] === char) {
-                    const block = last.block!;
+                    const block = last.block;
                     block.end = i;
                     block.endLine = lineMap[i];
-                    block.content = text.substring(block.start, i + 1);
                     if (!block.parent) blocks.push(block); // Only push root blocks here
                     stack.pop();
                 }
@@ -116,45 +113,30 @@ function findAllBlocks(text: string): Block[] {
     return blocks;
 }
 
-function flattenBlocks(blocks: Block[]): Block[] {
-    // Recursively flatten block tree
-    let result: Block[] = [];
-    for (const block of blocks) {
-        result.push(block);
-        if (block.children && block.children.length > 0) {
-            result = result.concat(flattenBlocks(block.children));
-        }
-    }
-    return result;
-}
-
 function findBlocksToCollapse(text: string, ignorePatterns: string[]): Block[] {
-    const rootBlocks = findAllBlocks(text);
-    const allBlocks = flattenBlocks(rootBlocks);
+    const rootBlocks = buildBlockTree(text);
     const lines = text.split('\n');
     const regexPatterns = ignorePatterns.map(pattern => new RegExp(pattern));
-    const ignoredBlocks = allBlocks.filter(block => {
+    const blocksToCollapse: Block[] = [];
+    for (const block of rootBlocks) {
         const line = lines[block.startLine]?.trim() || '';
-        return regexPatterns.some(re => re.test(line));
-    });
-    const blocksToCollapse: Set<Block> = new Set();
-    // For each ignored block, collapse its immediate children
-    for (const ignored of ignoredBlocks) {
-        if (ignored.children) {
-            for (const child of ignored.children) {
-                blocksToCollapse.add(child);
+        const isIgnored = regexPatterns.some(re => re.test(line));
+        if (isIgnored) {
+            // Collapse immediate children only
+            for (const child of block.children) {
+                // Only collapse if it spans multiple lines
+                if (child.endLine > child.startLine) {
+                    blocksToCollapse.push(child);
+                }
+            }
+        } else {
+            // Collapse the root block itself if it spans multiple lines
+            if (block.endLine > block.startLine) {
+                blocksToCollapse.push(block);
             }
         }
     }
-    // For all root blocks not ignored or inside an ignored block, collapse them
-    for (const block of rootBlocks) {
-        // If this block is not ignored and not a descendant of an ignored block
-        const isIgnored = ignoredBlocks.includes(block);
-        if (!isIgnored) {
-            blocksToCollapse.add(block);
-        }
-    }
-    return Array.from(blocksToCollapse);
+    return blocksToCollapse;
 }
 
 function collapseOuterBlocks(editor: vscode.TextEditor, blocks: Block[]) {
