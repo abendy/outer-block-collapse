@@ -2,7 +2,7 @@
     "name": "outer-block-collapse",
     "displayName": "Outer Block Collapse",
     "description": "Collapse outermost code blocks while keeping inner content expanded",
-    "version": "0.0.6",
+    "version": "0.0.7",
     "engines": {
         "vscode": "^1.80.0"
     },
